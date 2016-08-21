@@ -79,9 +79,12 @@ func (algo *EPLogisticRegression) Clear() {
 }
 
 func (algo *EPLogisticRegression) Train(dataset *core.DataSet) {
+	// http://videolectures.net/acml2013_herbrich_real_time_bayesian_learning/
 	// http://www.moserware.com/2010/03/computing-your-skill.html
 	// https://www.microsoft.com/en-us/research/publication/on-gaussian-expectation-propagation/
 	// https://www.microsoft.com/en-us/research/project/trueskill-ranking-system/
+	// https://en.wikipedia.org/wiki/Belief_propagation 
+	// http://videolectures.net/wapa2010_graepel_tals/
 	// Expectation propagation
 	// 1. compute initial estimate from all factors
 	// repeat 2-4 until all terms converge:
@@ -103,34 +106,49 @@ func (algo *EPLogisticRegression) Train(dataset *core.DataSet) {
 				wi = &(util.Gaussian{Mean: 0.0, Vari: algo.params.init_var})
 				algo.Model[feature.Id] = wi
 			}
+			// http://mathworld.wolfram.com/NormalSumDistribution.html 
+			// see weighted sum
 			s.Mean += feature.Value * wi.Mean
 			s.Vari += feature.Value * feature.Value * wi.Vari
 		}
 
+		// weights -> s -> t
+		// 
 		// s0 at start is the distribution over existing parameters
-		// t2 is a truncated gaussian (who's mean and variance are from s0 + variance from "clutter")
+
+		// t2 is the gaussian inside v and w?
+		// t2 is a truncated gaussian (who's mean and variance are from s0 + variance from "clutter") 
+		//    this is v and w
 		// t is s0, but with variance of "clutter" (see EP thesis from Minka) added, and multiplied by 
-		//    t2
+		//    t2 
 		// s2 is t but with addition of variance of "clutter"
 		// s is s0 multiplied with s2
 
-		// s and t seems to be the "forward" flow, and s2 and t2 the "backwards" flow
+		// gaussian can also be represented in terms of "precision" (1/var) and precision adjusted mean (mean*precision)
 		t := s
 		t.Vari += algo.params.beta
 
 		t2 := util.Gaussian{Mean: 0.0, Vari: 0.0}
 		// https://en.wikipedia.org/wiki/Truncated_normal_distribution
+		// this is v and w
 		if sample.Label > 0.0 {
 			t2.UpperTruncateGaussian(t.Mean, t.Vari, 0.0)
 		} else {
 			t2.LowerTruncateGaussian(t.Mean, t.Vari, 0.0)
 		}
+		// combine "result"/t2 (gaussian * step function) with t prediction
+		// is this just prior update?
 		t.MultGaussian(&t2)
 		s2 := t
+		// move up from t -> s in factor graph. Add the "click noise"
+		// // is this just prior update?
 		s2.Vari += algo.params.beta
 		s0 := s
+		// combine with old s
 		s.MultGaussian(&s2)
 
+		// graph propagation across factors (remove the current feature being updated)
+		// see expectation propagation
 		for _, feature := range sample.Features {
 			if feature.Value == 0.0 {
 				continue
@@ -139,7 +157,8 @@ func (algo *EPLogisticRegression) Train(dataset *core.DataSet) {
 			w2 := util.Gaussian{Mean: 0.0, Vari: 0.0}
 			wi, _ := algo.Model[feature.Id]
 			// remove the current term/feature's values from s0 (step 2 of EP)
-			// do ADF update
+			// message from s-> w_i/feature weight, accounting for forward pass of w->s, but without current feature
+			// is this just prior update?
 			w2.Mean = (s.Mean - (s0.Mean - wi.Mean*feature.Value)) / feature.Value
 			w2.Vari = (s.Vari + (s0.Vari - wi.Vari*feature.Value*feature.Value)) / (feature.Value * feature.Value)
 			wi.MultGaussian(&w2)
