@@ -120,9 +120,9 @@ func (algo *EPLogisticRegression) Train(dataset *core.DataSet) {
 		// t2 is a truncated gaussian (who's mean and variance are from s0 + variance from "clutter") 
 		//    this is v and w
 		// t is s0, but with variance of "clutter" (see EP thesis from Minka) added, and multiplied by 
-		//    t2 
-		// s2 is t but with addition of variance of "clutter"
-		// s is s0 multiplied with s2
+		//    t2. The multiplication with t2 is the message being sent back to t in the factor graph.
+		// s2 is t but with addition of variance of "clutter". It's message from t -> s
+		// s is s0 multiplied with s2. Incorporate new "feedback" message
 
 		// gaussian can also be represented in terms of "precision" (1/var) and precision adjusted mean (mean*precision)
 		t := s
@@ -141,7 +141,6 @@ func (algo *EPLogisticRegression) Train(dataset *core.DataSet) {
 		t.MultGaussian(&t2)
 		s2 := t
 		// move up from t -> s in factor graph. Add the "click noise"
-		// // is this just prior update?
 		s2.Vari += algo.params.beta
 		s0 := s
 		// combine with old s
@@ -158,7 +157,8 @@ func (algo *EPLogisticRegression) Train(dataset *core.DataSet) {
 			wi, _ := algo.Model[feature.Id]
 			// remove the current term/feature's values from s0 (step 2 of EP)
 			// message from s-> w_i/feature weight, accounting for forward pass of w->s, but without current feature
-			// is this just prior update?
+			// we divide by the feature.Value (squared for variance) bec. we only want to update the weight, and
+			//    in the initial collecting of message data we multiplied by this feature's value.
 			w2.Mean = (s.Mean - (s0.Mean - wi.Mean*feature.Value)) / feature.Value
 			w2.Vari = (s.Vari + (s0.Vari - wi.Vari*feature.Value*feature.Value)) / (feature.Value * feature.Value)
 			wi.MultGaussian(&w2)
