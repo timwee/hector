@@ -79,6 +79,7 @@ func (algo *EPLogisticRegression) Clear() {
 }
 
 func (algo *EPLogisticRegression) Train(dataset *core.DataSet) {
+	// http://tullo.ch/articles/online-learning-with-adpredictor/
 	// http://videolectures.net/acml2013_herbrich_real_time_bayesian_learning/
 	// http://www.moserware.com/2010/03/computing-your-skill.html
 	// https://www.microsoft.com/en-us/research/publication/on-gaussian-expectation-propagation/

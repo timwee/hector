@@ -11,6 +11,8 @@ import (
 )
 
 type FTRLLogisticRegressionParams struct {
+	// learning rate - alpha / (beta + accumulated_squared_gradients)
+	// alpha is learning rate, beta is smoothing parameter
 	Alpha, Beta, Lambda1, Lambda2 float64
 	Steps                         int
 }
@@ -88,6 +90,7 @@ func (algo *FTRLLogisticRegression) Clear() {
 }
 
 func (algo *FTRLLogisticRegression) Train(dataset *core.DataSet) {
+	// look at Algorithm 1 in "google trenches paper"
 	for step := 0; step < algo.Params.Steps; step++ {
 		for _, sample := range dataset.Samples {
 			prediction := algo.Predict(sample)
@@ -99,10 +102,15 @@ func (algo *FTRLLogisticRegression) Train(dataset *core.DataSet) {
 				}
 				zi := model_feature_value.zi
 				ni := model_feature_value.ni
+
+				// gradient at i
 				gi := -1 * err * feature.Value
+				// sigma_i
 				sigma := (math.Sqrt(ni+gi*gi) - math.Sqrt(ni)) / algo.Params.Alpha
 				wi := model_feature_value.Wi(algo.Params)
+
 				zi += gi - sigma*wi
+				// learning rate
 				ni += gi * gi
 				algo.Model[feature.Id] = FTRLFeatureWeight{zi: zi, ni: ni}
 			}
